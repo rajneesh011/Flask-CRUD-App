@@ -1,80 +1,52 @@
-from flask import Flask, render_template, request, redirect, url_for
-from flask_mysqldb import MySQL
+from flask import Flask, render_template, request, redirect
+import mysql.connector
 
 app = Flask(__name__)
 
-# Configure MySQL connection
-app.config['MYSQL_HOST'] = 'localhost'
-app.config['MYSQL_USER'] = 'your_mysql_username'
-app.config['MYSQL_PASSWORD'] = 'your_mysql_password'
-app.config['MYSQL_DB'] = 'your_mysql_database'
-mysql = MySQL(app)
+# MySQL configuration
+db = mysql.connector.connect(
+    host="localhost",
+    user="your_username",
+    password="your_password",
+    database="todo_app"
+)
+cursor = db.cursor()
+
+# Create a table to store todo items
+cursor.execute(
+    "CREATE TABLE IF NOT EXISTS todos (id INT AUTO_INCREMENT PRIMARY KEY, task VARCHAR(255))")
 
 
-@app.route('/')
+@app.route("/")
 def index():
-    # Fetch all records from the database
-    cur = mysql.connection.cursor()
-    cur.execute('SELECT * FROM users')
-    users = cur.fetchall()
-    cur.close()
-
-    return render_template('index.html', users=users)
+    # Retrieve all todo items from the database
+    cursor.execute("SELECT * FROM todos")
+    todos = cursor.fetchall()
+    return render_template("index.html", todos=todos)
 
 
-@app.route('/add', methods=['GET', 'POST'])
-def add_user():
-    if request.method == 'POST':
-        # Get form data
-        name = request.form['name']
-        email = request.form['email']
+@app.route("/add", methods=["POST"])
+def add():
+    # Get the task from the form submission
+    task = request.form["task"]
 
-        # Insert data into the database
-        cur = mysql.connection.cursor()
-        cur.execute(
-            'INSERT INTO users (name, email) VALUES (%s, %s)', (name, email))
-        mysql.connection.commit()
-        cur.close()
+    # Insert the task into the database
+    cursor.execute("INSERT INTO todos (task) VALUES (%s)", (task,))
+    db.commit()
 
-        return redirect(url_for('index'))
-
-    return render_template('add.html')
+    # Redirect to the home page
+    return redirect("/")
 
 
-@app.route('/edit/<int:user_id>', methods=['GET', 'POST'])
-def edit_user(user_id):
-    cur = mysql.connection.cursor()
-    if request.method == 'POST':
-        # Get form data
-        name = request.form['name']
-        email = request.form['email']
+@app.route("/delete/<int:todo_id>")
+def delete(todo_id):
+    # Delete the todo item with the specified ID
+    cursor.execute("DELETE FROM todos WHERE id = %s", (todo_id,))
+    db.commit()
 
-        # Update data in the database
-        cur.execute('UPDATE users SET name=%s, email=%s WHERE id=%s',
-                    (name, email, user_id))
-        mysql.connection.commit()
-        cur.close()
-
-        return redirect(url_for('index'))
-
-    # Fetch user data from the database
-    cur.execute('SELECT * FROM users WHERE id = %s', (user_id,))
-    user = cur.fetchone()
-    cur.close()
-
-    return render_template('edit.html', user=user)
+    # Redirect to the home page
+    return redirect("/")
 
 
-@app.route('/delete/<int:user_id>', methods=['POST'])
-def delete_user(user_id):
-    # Delete user from the database
-    cur = mysql.connection.cursor()
-    cur.execute('DELETE FROM users WHERE id = %s', (user_id,))
-    mysql.connection.commit()
-    cur.close()
-
-    return redirect(url_for('index'))
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
